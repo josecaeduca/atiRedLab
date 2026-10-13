@@ -1,0 +1,2022 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de Redes — Taller de Topologías</title>
+<style>
+  :root{
+    --bg-canvas:#0F1720;
+    --bg-grid-dot:#1C2733;
+    --bg-panel:#141B24;
+    --bg-panel-2:#182029;
+    --border:#243040;
+    --border-soft:#1c2632;
+    --text:#E6EDF3;
+    --text-dim:#8A99A8;
+    --text-faint:#5B6B7A;
+    --accent:#2DD4BF;
+    --accent-dim:#175048;
+    --copper:#E0984C;
+    --copper-dim:#4a3520;
+    --wifi:#4FD1C5;
+    --ok:#4ADE80;
+    --ok-dim:#173322;
+    --fail:#F87171;
+    --fail-dim:#3a1c1c;
+    --warn:#FBBF24;
+    --radius:6px;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:var(--sans);
+    background:#0A0F15;
+    color:var(--text);
+    overflow:hidden;
+  }
+  button{font-family:var(--sans);cursor:pointer;}
+  input,select{font-family:var(--sans);}
+
+  /* ---------- Layout general ---------- */
+  #app{
+    display:grid;
+    grid-template-rows:52px 1fr;
+    height:100vh;
+  }
+  header{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    padding:0 16px;
+    background:var(--bg-panel);
+    border-bottom:1px solid var(--border);
+    z-index:20;
+  }
+  header .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  header .brand .brand-logo{
+    height:32px;
+    width:32px;
+    object-fit:contain;
+    flex-shrink:0;
+  }
+  header .brand .title{
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:0.2px;
+  }
+  header .brand .subtitle{
+    font-size:11px;
+    color:var(--text-dim);
+    font-family:var(--mono);
+  }
+  header .spacer{flex:1;}
+  header .hdr-actions{display:flex;gap:8px;align-items:center;}
+  .hdr-btn{
+    background:var(--bg-panel-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:7px 12px;
+    border-radius:var(--radius);
+    font-size:12.5px;
+    display:flex;align-items:center;gap:6px;
+  }
+  .hdr-btn:hover{border-color:var(--accent);}
+  .hdr-btn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
+  .hdr-btn.danger:hover{border-color:var(--fail);color:var(--fail);}
+
+  #main-grid{
+    display:grid;
+    grid-template-columns:78px 1fr 320px;
+    min-height:0;
+  }
+
+  /* ---------- Paleta lateral ---------- */
+  #palette{
+    background:var(--bg-panel);
+    border-right:1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:14px 0;
+    gap:6px;
+    overflow-y:auto;
+  }
+  .pal-label{
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--text-faint);
+    margin:8px 0 2px;
+  }
+  .pal-item{
+    width:58px;height:58px;
+    border:1px solid transparent;
+    border-radius:var(--radius);
+    background:transparent;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    color:var(--text-dim);
+    transition:background .12s, color .12s, border-color .12s;
+  }
+  .pal-item svg{width:26px;height:26px;stroke:currentColor;fill:none;}
+  .pal-item span{font-size:9px;line-height:1;}
+  .pal-item:hover{background:var(--bg-panel-2);color:var(--text);border-color:var(--border-soft);}
+  .pal-item.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent);}
+  .pal-item:active{transform:scale(0.95);}
+  .pal-divider{width:44px;height:1px;background:var(--border);margin:6px 0;}
+
+  /* ---------- Canvas ---------- */
+  #canvas-wrap{
+    position:relative;
+    overflow:auto;
+    background-color:var(--bg-canvas);
+    background-image:radial-gradient(var(--bg-grid-dot) 1px, transparent 1px);
+    background-size:22px 22px;
+  }
+  #canvas{
+    position:relative;
+    width:2200px;
+    height:1500px;
+  }
+  #link-svg{
+    position:absolute;top:0;left:0;
+    width:100%;height:100%;
+    pointer-events:none;
+  }
+  .link-line{
+    stroke:var(--copper);
+    stroke-width:2.5;
+    fill:none;
+    pointer-events:stroke;
+    cursor:pointer;
+  }
+  .link-line.wifi{
+    stroke:var(--wifi);
+    stroke-dasharray:5 5;
+  }
+  .link-line.selected{
+    stroke:var(--accent);
+    stroke-width:3.5;
+  }
+  .link-hit{
+    stroke:transparent;
+    stroke-width:14;
+    fill:none;
+    pointer-events:stroke;
+    cursor:pointer;
+  }
+  .link-del-btn{
+    cursor:pointer;
+    pointer-events:auto;
+  }
+  .link-del-btn circle{fill:var(--fail-dim);stroke:var(--fail);stroke-width:1.5;pointer-events:auto;}
+  .link-del-btn text{fill:var(--fail);font-size:11px;font-family:var(--sans);text-anchor:middle;dominant-baseline:central;pointer-events:none;}
+  .link-del-btn:hover circle{fill:var(--fail);}
+  .link-del-btn:hover text{fill:#1a0808;}
+
+  .packet-dot{
+    fill:var(--warn);
+    filter:drop-shadow(0 0 4px var(--warn));
+  }
+  .packet-dot.ok{fill:var(--ok);filter:drop-shadow(0 0 5px var(--ok));}
+  .packet-dot.fail{fill:var(--fail);filter:drop-shadow(0 0 5px var(--fail));}
+
+  .device{
+    position:absolute;
+    width:84px;
+    display:flex;flex-direction:column;align-items:center;
+    user-select:none;
+    cursor:grab;
+    z-index:5;
+  }
+  .device.dragging{cursor:grabbing;z-index:15;}
+  .device-icon-box{
+    width:56px;height:56px;
+    border-radius:10px;
+    background:var(--bg-panel);
+    border:1.5px solid var(--border);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--text-dim);
+    transition:border-color .12s, box-shadow .12s;
+  }
+  .device-icon-box svg{width:32px;height:32px;stroke:currentColor;fill:none;}
+  .device.selected .device-icon-box{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
+  .device.connect-armed .device-icon-box{border-color:var(--warn);box-shadow:0 0 0 3px rgba(251,191,36,.18);animation:pulse-armed 1.1s ease-in-out infinite;}
+  @keyframes pulse-armed{
+    0%,100%{box-shadow:0 0 0 3px rgba(251,191,36,.18);}
+    50%{box-shadow:0 0 0 7px rgba(251,191,36,.32);}
+  }
+  .device.compat-cable .device-icon-box{border-color:var(--copper);box-shadow:0 0 0 3px var(--copper-dim);}
+  .device.compat-wifi .device-icon-box{border-color:var(--wifi);box-shadow:0 0 0 3px rgba(79,209,197,.18);}
+  .device.dim-incompatible{opacity:.32;filter:grayscale(55%);}
+  .device.dim-incompatible .device-icon-box{cursor:not-allowed;}
+
+  #connect-banner{
+    position:absolute;
+    top:14px;left:50%;
+    transform:translateX(-50%);
+    background:var(--bg-panel);
+    border:1px solid var(--warn);
+    color:var(--text);
+    padding:8px 16px;
+    border-radius:999px;
+    font-size:12.5px;
+    display:none;
+    align-items:center;
+    gap:10px;
+    z-index:35;
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+    white-space:nowrap;
+  }
+  #connect-banner .cb-dot{
+    width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none;
+  }
+  #connect-banner .cb-dot.step2{background:var(--accent);}
+  #connect-banner .cb-cancel{
+    background:var(--bg-panel-2);border:1px solid var(--border);color:var(--text-dim);
+    border-radius:999px;padding:3px 10px;font-size:11px;
+  }
+  #connect-banner .cb-cancel:hover{color:var(--text);border-color:var(--text-dim);}
+  #canvas-wrap.connecting{cursor:crosshair;}
+  .device.no-config .device-icon-box{color:var(--copper);}
+  .device-name{
+    font-size:11px;font-weight:600;margin-top:5px;text-align:center;
+    max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .device-ip{
+    font-size:9.5px;font-family:var(--mono);color:var(--text-dim);margin-top:1px;
+  }
+  .device-ip.empty{color:var(--copper);}
+
+  /* ---------- Panel flotante de selección de puerto ---------- */
+  #port-popover{
+    position:absolute;
+    background:var(--bg-panel-2);
+    border:1px solid var(--accent);
+    border-radius:var(--radius);
+    padding:6px;
+    z-index:40;
+    display:none;
+    min-width:150px;
+    box-shadow:0 6px 18px rgba(0,0,0,.5);
+  }
+  #port-popover .pp-title{font-size:10px;color:var(--text-dim);padding:2px 6px 6px;}
+  #port-popover button{
+    display:block;width:100%;text-align:left;
+    background:none;border:none;color:var(--text);
+    padding:6px 8px;border-radius:4px;font-size:12.5px;
+  }
+  #port-popover button:hover{background:var(--accent-dim);color:var(--accent);}
+  #port-popover button:disabled{color:var(--text-faint);cursor:not-allowed;}
+  #port-popover button:disabled:hover{background:none;}
+
+  /* ---------- Barra contextual flotante ---------- */
+  #context-bar{
+    position:absolute;
+    bottom:18px;left:50%;
+    transform:translateX(-50%);
+    background:var(--bg-panel);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:6px;
+    display:none;
+    gap:4px;
+    z-index:30;
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+  }
+  #context-bar button{
+    background:none;border:none;color:var(--text);
+    padding:8px 14px;border-radius:999px;font-size:12.5px;
+    display:flex;align-items:center;gap:6px;
+  }
+  #context-bar button:hover{background:var(--bg-panel-2);}
+  #context-bar button.danger:hover{background:var(--fail-dim);color:var(--fail);}
+
+  /* ---------- Sidebar Probador ---------- */
+  #sidebar{
+    background:var(--bg-panel);
+    border-left:1px solid var(--border);
+    display:flex;flex-direction:column;
+    min-height:0;
+  }
+  .sb-section{
+    padding:14px 16px;
+    border-bottom:1px solid var(--border-soft);
+  }
+  .sb-title{
+    font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--text-dim);margin-bottom:10px;font-weight:700;
+  }
+  .field{margin-bottom:10px;}
+  .field label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px;}
+  .field select, .field input{
+    width:100%;
+    background:var(--bg-panel-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:7px 8px;
+    border-radius:4px;
+    font-size:12.5px;
+  }
+  .field select:focus, .field input:focus{outline:none;border-color:var(--accent);}
+  .btn-primary{
+    width:100%;
+    background:var(--accent);
+    color:#052924;
+    border:none;
+    padding:9px;
+    border-radius:var(--radius);
+    font-weight:700;
+    font-size:12.5px;
+    letter-spacing:.02em;
+  }
+  .btn-primary:hover{background:#3fe8d1;}
+  .btn-primary:disabled{background:var(--border);color:var(--text-faint);cursor:not-allowed;}
+  .btn-secondary{
+    width:100%;
+    background:var(--bg-panel-2);
+    color:var(--text);
+    border:1px solid var(--border);
+    padding:8px;
+    border-radius:var(--radius);
+    font-size:12px;
+  }
+  .btn-secondary:hover{border-color:var(--text-dim);}
+  .btn-secondary.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent);}
+
+  #console-wrap{
+    flex:1;
+    display:flex;flex-direction:column;
+    min-height:0;
+  }
+  #console{
+    flex:1;
+    overflow-y:auto;
+    padding:10px 14px;
+    font-family:var(--mono);
+    font-size:11.5px;
+    line-height:1.6;
+  }
+  #console .line{white-space:pre-wrap;word-break:break-word;}
+  #console .line.dim{color:var(--text-faint);}
+  #console .line.ok{color:var(--ok);}
+  #console .line.fail{color:var(--fail);}
+  #console .line.warn{color:var(--warn);}
+  #console .line.hop{color:var(--text-dim);}
+  #console .sep{color:var(--text-faint);margin:4px 0;border-top:1px dashed var(--border-soft);padding-top:4px;}
+  #console-empty{color:var(--text-faint);font-size:12px;padding:14px;font-family:var(--mono);}
+
+  /* ---------- Modal configuración ---------- */
+  .modal-overlay{
+    position:fixed;inset:0;
+    background:rgba(5,8,12,.65);
+    display:none;
+    align-items:center;justify-content:center;
+    z-index:100;
+  }
+  .modal{
+    background:var(--bg-panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    width:420px;
+    max-width:92vw;
+    max-height:86vh;
+    overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);
+  }
+  .modal-head{
+    display:flex;align-items:center;gap:10px;
+    padding:16px 18px;border-bottom:1px solid var(--border-soft);
+  }
+  .modal-head svg{width:22px;height:22px;stroke:var(--accent);fill:none;}
+  .modal-head .mh-title{font-weight:700;font-size:14.5px;}
+  .modal-head .mh-sub{font-size:11px;color:var(--text-dim);font-family:var(--mono);}
+  .modal-body{padding:16px 18px;}
+  .modal-foot{
+    padding:14px 18px;border-top:1px solid var(--border-soft);
+    display:flex;gap:8px;justify-content:flex-end;
+  }
+  .iface-block{
+    border:1px solid var(--border-soft);
+    border-radius:var(--radius);
+    padding:12px;margin-bottom:12px;
+    background:var(--bg-panel-2);
+  }
+  .iface-block .iface-title{
+    font-size:11.5px;font-weight:700;color:var(--accent);
+    margin-bottom:8px;display:flex;align-items:center;gap:6px;
+  }
+  .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .hint{font-size:10.5px;color:var(--text-faint);margin-top:3px;}
+  .field-err{font-size:10.5px;color:var(--fail);margin-top:3px;display:none;}
+  .field.has-error input{border-color:var(--fail);}
+  .field.has-error .field-err{display:block;}
+
+  .ports-section{margin-bottom:14px;}
+  .ports-section .ports-label{
+    font-size:10px;text-transform:uppercase;letter-spacing:.07em;
+    color:var(--text-faint);margin-bottom:8px;font-weight:700;
+  }
+  .ports-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(62px, 1fr));
+    gap:7px;
+  }
+  .port-chip{
+    background:var(--bg-panel-2);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:8px 4px 7px;
+    text-align:center;
+    color:var(--text-dim);
+  }
+  .port-chip .port-led{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--border-soft);
+    margin:0 auto 6px;
+  }
+  .port-chip .port-name{font-size:10px;line-height:1.3;word-break:break-word;}
+  .port-chip.occupied{border-color:var(--ok-dim);color:var(--text);}
+  .port-chip.occupied .port-led{background:var(--ok);box-shadow:0 0 5px var(--ok);}
+  .btn-close-x{
+    margin-left:auto;background:none;border:none;color:var(--text-dim);font-size:18px;line-height:1;padding:2px 6px;
+  }
+  .btn-close-x:hover{color:var(--text);}
+
+  /* Empty state canvas */
+  #empty-hint{
+    position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);
+    text-align:center;color:var(--text-faint);pointer-events:none;
+    width:340px;
+  }
+  #empty-hint svg{width:44px;height:44px;stroke:var(--text-faint);fill:none;margin-bottom:10px;}
+  #empty-hint .t1{font-size:13.5px;color:var(--text-dim);margin-bottom:4px;}
+  #empty-hint .t2{font-size:11.5px;line-height:1.5;}
+
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px;}
+  ::-webkit-scrollbar-thumb:hover{background:var(--text-faint);}
+
+  .toast{
+    position:fixed;top:64px;left:50%;transform:translateX(-50%);
+    background:var(--fail-dim);border:1px solid var(--fail);color:var(--fail);
+    padding:9px 16px;border-radius:var(--radius);font-size:12.5px;
+    z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.4);
+    display:none;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="brand">
+      <img class="brand-logo" src="data:image/png;base64,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" alt="Logo Unidad Educativa Ati II Pillahuaso">
+      <span class="title">Simulador de Redes</span>
+      <span class="subtitle">Unidad Educativa Ati II Pillahuaso</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="hdr-actions">
+      <button class="hdr-btn" id="btn-help">Ayuda</button>
+      <button class="hdr-btn" id="btn-about">Acerca de</button>
+      <button class="hdr-btn" id="btn-export-png">Exportar PNG</button>
+      <button class="hdr-btn" id="btn-export">Guardar…</button>
+      <button class="hdr-btn" id="btn-import">Abrir…</button>
+      <button class="hdr-btn danger" id="btn-clear">Vaciar lienzo</button>
+      <input type="file" id="file-import" accept="application/json" style="display:none;">
+    </div>
+  </header>
+
+  <div id="main-grid">
+
+    <!-- ===================== PALETA ===================== -->
+    <div id="palette">
+      <div class="pal-label">Equipos</div>
+      <button class="pal-item" data-type="pc" title="PC de escritorio">
+        <svg viewBox="0 0 24 24" stroke-width="1.6"><rect x="3" y="4" width="18" height="12" rx="1.2"/><path d="M9 20h6M12 16v4"/></svg>
+        <span>PC</span>
+      </button>
+      <button class="pal-item" data-type="laptop" title="Laptop">
+        <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M5 5h14v10H5z"/><path d="M2 19h20l-2-4H4z"/></svg>
+        <span>Laptop</span>
+      </button>
+      <button class="pal-item" data-type="phone" title="Celular">
+        <svg viewBox="0 0 24 24" stroke-width="1.6"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 19h2"/></svg>
+        <span>Celular</span>
+      </button>
+      <div class="pal-divider"></div>
+      <div class="pal-label">Enlaces</div>
+      <button class="pal-item" data-type="switch" title="Switch">
+        <svg viewBox="0 0 24 24" stroke-width="1.6"><rect x="2" y="8" width="20" height="8" rx="1.2"/><path d="M5 8V6M9 8V6M13 8V6M17 8V6M5 16v2M9 16v2M13 16v2M17 16v2"/></svg>
+        <span>Switch</span>
+      </button>
+      <button class="pal-item" data-type="router" title="Router">
+        <svg viewBox="0 0 24 24" stroke-width="1.6"><rect x="3" y="10" width="18" height="7" rx="1.2"/><path d="M8 10 6 4M16 10l2-6M11 10V7"/><path d="M6 17v2M10 17v2M14 17v2M18 17v2"/></svg>
+        <span>Router</span>
+      </button>
+      <button class="pal-item" data-type="homerouter" title="Router doméstico (4 LAN + WiFi + WAN)">
+        <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M3 11 12 4l9 7"/><path d="M5 10v9h14v-9"/><path d="M9 19v-5h6v5"/><path d="M15 10.5v-3h2v4.6"/></svg>
+        <span>R. doméstico</span>
+      </button>
+      <button class="pal-item" data-type="internet" title="Internet (nube)">
+        <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M7 18a4 4 0 1 1 .4-7.98 5 5 0 0 1 9.5 1.2A3.5 3.5 0 0 1 16.5 18H7z"/></svg>
+        <span>Internet</span>
+      </button>
+      <div class="pal-divider"></div>
+      <div class="pal-label">Modo</div>
+      <button class="pal-item" id="tool-cable" title="Conectar por cable UTP">
+        <svg viewBox="0 0 24 24" stroke-width="1.6"><circle cx="5" cy="12" r="2.4"/><circle cx="19" cy="12" r="2.4"/><path d="M7.4 12h9.2"/></svg>
+        <span>Cable UTP</span>
+      </button>
+      <button class="pal-item" id="tool-wifi" title="Conectar por WiFi">
+        <svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M2 8.5a15 15 0 0 1 20 0"/><path d="M5.5 12a10 10 0 0 1 13 0"/><path d="M9 15.5a5 5 0 0 1 6 0"/><circle cx="12" cy="19" r="1.1" fill="currentColor" stroke="none"/></svg>
+        <span>WiFi</span>
+      </button>
+    </div>
+
+    <!-- ===================== CANVAS ===================== -->
+    <div id="canvas-wrap">
+      <div id="canvas">
+        <svg id="link-svg"></svg>
+      </div>
+      <div id="empty-hint">
+        <svg viewBox="0 0 24 24" stroke-width="1.3"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>
+        <div class="t1">Lienzo vacío</div>
+        <div class="t2">Arrastra o haz clic en un equipo del panel izquierdo para agregarlo. Luego usa «Cable UTP» o «WiFi» para conectar dos dispositivos.</div>
+      </div>
+      <div id="connect-banner">
+        <span class="cb-dot" id="cb-dot"></span>
+        <span id="cb-text"></span>
+        <button class="cb-cancel" id="cb-cancel">Cancelar (Esc)</button>
+      </div>
+      <div id="port-popover"></div>
+      <div id="context-bar"></div>
+    </div>
+
+    <!-- ===================== SIDEBAR PROBADOR ===================== -->
+    <div id="sidebar">
+      <div class="sb-section">
+        <div class="sb-title">Probador de red</div>
+        <div class="field">
+          <label>Origen</label>
+          <select id="sel-origen"></select>
+        </div>
+        <div class="field">
+          <label>Destino</label>
+          <select id="sel-destino"></select>
+        </div>
+        <button class="btn-primary" id="btn-ping">Enviar paquete (ping)</button>
+      </div>
+      <div class="sb-section" style="padding-bottom:10px;">
+        <div class="sb-title" style="margin-bottom:6px;">Consola</div>
+        <button class="btn-secondary" id="btn-clear-console">Limpiar consola</button>
+      </div>
+      <div id="console-wrap">
+        <div id="console"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================================
+   MODELO DE DATOS
+   ========================================================================= */
+
+const DEVICE_TYPES = {
+  pc:     { label:'PC Escritorio', multi:false, ports:[{id:'eth0', media:'cable', label:'Ethernet'}] },
+  laptop: { label:'Laptop',        multi:false, ports:[{id:'eth0', media:'cable', label:'Ethernet'}, {id:'wifi0', media:'wifi', label:'WiFi'}] },
+  phone:  { label:'Celular',       multi:false, ports:[{id:'wifi0', media:'wifi', label:'WiFi'}] },
+  switch: { label:'Switch',        multi:true,  ports:Array.from({length:8},(_,i)=>({id:'p'+(i+1), media:'cable', label:'Puerto '+(i+1)})) },
+  router: { label:'Router',        multi:true,  ports:[
+              {id:'lan0', media:'cable', label:'LAN0'},
+              {id:'lan1', media:'cable', label:'LAN1'},
+              {id:'wifi0', media:'wifi', label:'WiFi', unlimited:true},
+              {id:'wan0', media:'cable', label:'WAN0'}
+            ] },
+  internet: { label:'Internet (nube)', multi:true, ports:[{id:'wan0', media:'cable', label:'WAN', unlimited:true}] },
+  homerouter: { label:'Router doméstico', multi:true, ports:[
+              {id:'lan1', media:'cable', label:'LAN1'},
+              {id:'lan2', media:'cable', label:'LAN2'},
+              {id:'lan3', media:'cable', label:'LAN3'},
+              {id:'lan4', media:'cable', label:'LAN4'},
+              {id:'wifi0', media:'wifi', label:'WiFi', unlimited:true},
+              {id:'wan0', media:'cable', label:'WAN'}
+            ] }
+};
+
+let nodes = {};      // id -> node
+let links = {};      // id -> link
+let nextId = 1;
+function genId(prefix){ return prefix + (nextId++); }
+
+function newNode(type, x, y){
+  const id = genId('n');
+  const count = Object.values(nodes).filter(n=>n.type===type).length + 1;
+  const base = { id, type, name: DEVICE_TYPES[type].label + ' ' + count, x, y };
+  if (type === 'router'){
+    base.config = {
+      interfaces:{
+        lan0:{ ip:'', mask:'', dns:'' },
+        lan1:{ ip:'', mask:'', dns:'' },
+        wifi0:{ ip:'', mask:'', dns:'' },
+        wan0:{ ip:'', mask:'', dns:'' }
+      },
+      defaultGateway:''
+    };
+  } else if (type === 'homerouter'){
+    base.config = {
+      interfaces:{
+        lan:{ ip:'192.168.1.1', mask:'255.255.255.0', dns:'' }, // LAN1-4 + WiFi, todo puenteado
+        wan:{ ip:'', mask:'', dns:'' }
+      },
+      defaultGateway:''
+    };
+  } else if (type === 'switch'){
+    base.config = {};
+  } else if (type === 'internet'){
+    base.config = { ip:'8.8.8.8' };
+  } else {
+    base.config = { ip:'', mask:'', gateway:'', dns:'' };
+  }
+  base.activePort = null; // para pc/laptop/phone: qué puerto está en uso
+  return base;
+}
+
+/* =========================================================================
+   UTILIDADES DE RED (IPv4)
+   ========================================================================= */
+
+function ipToInt(ip){
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec((ip||'').trim());
+  if (!m) return null;
+  const parts = m.slice(1,5).map(Number);
+  if (parts.some(p => p<0 || p>255)) return null;
+  return ((parts[0]<<24) | (parts[1]<<16) | (parts[2]<<8) | parts[3]) >>> 0;
+}
+function isValidIp(ip){ return ipToInt(ip) !== null; }
+
+function normalizeMask(mask){
+  // acepta "255.255.255.0" o "/24" o "24"
+  if (!mask) return null;
+  mask = mask.trim();
+  let m = /^\/?(\d{1,2})$/.exec(mask);
+  if (m){
+    const prefix = parseInt(m[1],10);
+    if (prefix < 0 || prefix > 32) return null;
+    const val = prefix === 0 ? 0 : (0xFFFFFFFF << (32-prefix)) >>> 0;
+    return intToIp(val);
+  }
+  if (isValidIp(mask)) return mask;
+  return null;
+}
+function isValidMask(mask){
+  const norm = normalizeMask(mask);
+  if (!norm) return false;
+  const val = ipToInt(norm);
+  // validar que sea contigua: 1s seguidos de 0s
+  let bin = (val >>> 0).toString(2).padStart(32,'0');
+  return /^1*0*$/.test(bin);
+}
+function intToIp(int){
+  return [(int>>>24)&255,(int>>>16)&255,(int>>>8)&255,int&255].join('.');
+}
+function network(ip, mask){
+  const ipI = ipToInt(ip), maskI = ipToInt(normalizeMask(mask));
+  if (ipI===null || maskI===null) return null;
+  return (ipI & maskI) >>> 0;
+}
+
+/* =========================================================================
+   MODELO DE GRAFO (capa 2) — ver explicación en el chat:
+   - Cada switch colapsa TODOS sus puertos en un único vértice ('SW:id'),
+     porque un switch conecta transparentemente todos sus puertos.
+   - Cada puerto de router es un vértice independiente ('id:portId'),
+     porque un router NO interconecta sus interfaces automáticamente.
+   - PC/laptop/celular solo pueden tener UN enlace activo a la vez.
+   ========================================================================= */
+
+function canonicalVertex(nodeId, portId){
+  const n = nodes[nodeId];
+  if (!n) return null;
+  if (n.type === 'switch' || n.type === 'internet') return 'SW:' + nodeId;
+  if (n.type === 'homerouter'){
+    if (portId === 'wan0') return nodeId + ':wan';
+    return nodeId + ':lan'; // LAN1-4 + WiFi: todo puenteado a la misma red interna
+  }
+  return nodeId + ':' + portId;
+}
+
+function buildAdjacency(){
+  const adj = {}; // vertex -> [{to, linkId}]
+  Object.values(links).forEach(l=>{
+    const va = canonicalVertex(l.a.nodeId, l.a.portId);
+    const vb = canonicalVertex(l.b.nodeId, l.b.portId);
+    if (!va || !vb) return;
+    (adj[va] = adj[va]||[]).push({to:vb, linkId:l.id});
+    (adj[vb] = adj[vb]||[]).push({to:va, linkId:l.id});
+  });
+  return adj;
+}
+
+function l2Bfs(startVertex, targetVertex){
+  if (startVertex === targetVertex) return [{vertex:startVertex, linkId:null}];
+  const adj = buildAdjacency();
+  const visited = new Set([startVertex]);
+  const queue = [startVertex];
+  const prev = {}; // vertex -> {from, linkId}
+  while(queue.length){
+    const cur = queue.shift();
+    const neighbors = adj[cur] || [];
+    for (const {to, linkId} of neighbors){
+      if (visited.has(to)) continue;
+      visited.add(to);
+      prev[to] = {from:cur, linkId};
+      if (to === targetVertex){
+        // reconstruir camino
+        const path = [{vertex:to, linkId}];
+        let v = cur;
+        while (v !== startVertex){
+          const p = prev[v];
+          path.unshift({vertex:v, linkId:p.linkId});
+          v = p.from;
+        }
+        path.unshift({vertex:startVertex, linkId:null});
+        return path;
+      }
+      queue.push(to);
+    }
+  }
+  return null;
+}
+
+function vertexToNodeId(vertex){
+  return vertex.startsWith('SW:') ? vertex.slice(3) : vertex.split(':')[0];
+}
+
+function deviceVertex(node){
+  if (node.type === 'switch' || node.type === 'internet') return 'SW:' + node.id;
+  if (!node.activePort) return null;
+  return node.id + ':' + node.activePort;
+}
+
+/* =========================================================================
+   MOTOR DE PRUEBA DE CONECTIVIDAD (ping simulado)
+   ========================================================================= */
+
+function findRouterInterfaceByIp(ip, excludeRouterIds){
+  excludeRouterIds = excludeRouterIds || new Set();
+  for (const n of Object.values(nodes)){
+    if ((n.type !== 'router' && n.type !== 'homerouter') || excludeRouterIds.has(n.id)) continue;
+    for (const portId of Object.keys(n.config.interfaces)){
+      const iface = n.config.interfaces[portId];
+      if (iface.ip && iface.ip === ip){
+        return { routerId:n.id, portId, iface };
+      }
+    }
+  }
+  return null;
+}
+
+function routerHasLinkOnPort(routerId, portId){
+  return Object.values(links).some(l =>
+    (l.a.nodeId===routerId && l.a.portId===portId) ||
+    (l.b.nodeId===routerId && l.b.portId===portId)
+  );
+}
+
+// Busca, dentro de un router, una interfaz cuya subred (según SU máscara)
+// contenga la IP dada. Devuelve {portId, iface} o null.
+function findOwnInterfaceForIp(router, ip, excludePortId){
+  for (const portId of Object.keys(router.config.interfaces)){
+    if (portId === excludePortId) continue;
+    const iface = router.config.interfaces[portId];
+    if (!iface.ip || !iface.mask) continue;
+    if (!isValidIp(ip)) continue;
+    if (network(ip, iface.mask) === network(iface.ip, iface.mask)){
+      return { portId, iface };
+    }
+  }
+  return null;
+}
+
+function routeFromRouter(routerId, entryPortId, dstNode, visitedRouters, hop, pathAcc){
+  if (hop > 6){
+    return { ok:false, reason:'Se superó el número máximo de saltos entre routers (posible bucle de enrutamiento). Revisa las rutas predeterminadas.' };
+  }
+  const router = nodes[routerId];
+
+  // Caso especial: el destino es "Internet" (nube). No tiene una subred
+  // propia como una LAN normal — representa cualquier host externo, así
+  // que basta con que el router tenga conexión física (directa o por
+  // switches) hacia algún nodo de tipo "internet" en cualquiera de sus
+  // interfaces.
+  if (dstNode.type === 'internet'){
+    for (const portId of Object.keys(router.config.interfaces)){
+      const segPath = l2Bfs(routerId + ':' + portId, deviceVertex(dstNode));
+      if (segPath){
+        pathAcc.push(...segPath.slice(1));
+        return { ok:true };
+      }
+    }
+    // Ninguna interfaz llega directo a la nube: probar ruta predeterminada más abajo.
+  } else {
+    const match = findOwnInterfaceForIp(router, dstNode.config.ip, null);
+    if (match){
+      const segPath = l2Bfs(routerId + ':' + match.portId, deviceVertex(dstNode));
+      if (segPath){
+        pathAcc.push(...segPath.slice(1));
+        return { ok:true };
+      }
+      return { ok:false, reason:'El destino no responde: no hay conexión física/inalámbrica entre el router "'+router.name+'" (interfaz '+match.portId.toUpperCase()+') y "'+dstNode.name+'".' };
+    }
+  }
+
+  // No hay interfaz directa hacia esa red: intentar ruta predeterminada
+  const dgw = router.config.defaultGateway;
+  if (!dgw){
+    const destLabel = dstNode.type==='internet' ? 'Internet' : 'una interfaz en esa red';
+    return { ok:false, reason:'Red de destino desconocida: el router "'+router.name+'" no tiene '+(dstNode.type==='internet'?'conexión hacia ':'')+destLabel+' ni una ruta predeterminada configurada.' };
+  }
+  if (!isValidIp(dgw)){
+    return { ok:false, reason:'La ruta predeterminada del router "'+router.name+'" tiene una IP inválida.' };
+  }
+  const outIface = findOwnInterfaceForIp(router, dgw, entryPortId);
+  if (!outIface){
+    return { ok:false, reason:'La ruta predeterminada del router "'+router.name+'" ('+dgw+') no pertenece a ninguna de sus redes conectadas.' };
+  }
+  const nextHop = findRouterInterfaceByIp(dgw, visitedRouters);
+  if (!nextHop){
+    return { ok:false, reason:'La ruta predeterminada del router "'+router.name+'" apunta a '+dgw+', pero ninguna interfaz de otro router tiene esa IP.' };
+  }
+  const segPath = l2Bfs(routerId + ':' + outIface.portId, nextHop.routerId + ':' + nextHop.portId);
+  if (!segPath){
+    return { ok:false, reason:'La ruta predeterminada del router "'+router.name+'" no responde: sin conexión física hacia '+dgw+'.' };
+  }
+  pathAcc.push(...segPath.slice(1));
+  visitedRouters.add(nextHop.routerId);
+  return routeFromRouter(nextHop.routerId, nextHop.portId, dstNode, visitedRouters, hop+1, pathAcc);
+}
+
+function runPing(srcId, dstId){
+  const src = nodes[srcId], dst = nodes[dstId];
+  const result = { ok:false, reason:'', path:[], src, dst };
+  if (!src || !dst) { result.reason = 'Dispositivo no encontrado.'; return result; }
+
+  if (!src.config.ip || !src.config.mask){
+    result.reason = 'El origen "'+src.name+'" no tiene IP o máscara de subred configurada.';
+    return result;
+  }
+  if (!isValidIp(src.config.ip) || !isValidMask(src.config.mask)){
+    result.reason = 'La configuración IP del origen "'+src.name+'" no es válida.';
+    return result;
+  }
+  if (!dst.config.ip){
+    result.reason = 'El destino "'+dst.name+'" no tiene IP configurada.';
+    return result;
+  }
+  if (!isValidIp(dst.config.ip)){
+    result.reason = 'La IP de destino en "'+dst.name+'" no es válida.';
+    return result;
+  }
+
+  // Conflicto de IP: dos dispositivos finales con la misma IP
+  const dupSrc = Object.values(nodes).some(n => n.id!==src.id && n.config && n.config.ip === src.config.ip && (n.type==='pc'||n.type==='laptop'||n.type==='phone'));
+  const dupDst = Object.values(nodes).some(n => n.id!==dst.id && n.config && n.config.ip === dst.config.ip && (n.type==='pc'||n.type==='laptop'||n.type==='phone'));
+  if (dupSrc || dupDst){
+    result.reason = 'Conflicto de direcciones IP detectado en la red: hay más de un dispositivo usando la misma IP.';
+    return result;
+  }
+
+  const srcVertex = deviceVertex(src);
+  if (!srcVertex){
+    result.reason = 'El origen "'+src.name+'" no tiene ninguna conexión física ni inalámbrica activa.';
+    return result;
+  }
+  const dstVertex = deviceVertex(dst);
+  if (!dstVertex){
+    result.reason = 'El destino "'+dst.name+'" no tiene ninguna conexión física ni inalámbrica activa.';
+    return result;
+  }
+
+  const srcNet = network(src.config.ip, src.config.mask);
+  const dstNetPerSrcMask = network(dst.config.ip, src.config.mask); // el host usa SU máscara
+
+  if (srcNet !== null && srcNet === dstNetPerSrcMask){
+    // Misma subred → intenta entrega directa por capa 2 (switches)
+    const path = l2Bfs(srcVertex, dstVertex);
+    if (path){
+      result.ok = true;
+      result.path = path;
+      result.mode = 'local';
+      return result;
+    }
+    result.reason = 'Tiempo de espera agotado: "'+src.name+'" y "'+dst.name+'" están en la misma red lógica, pero no existe un cableado o enlace WiFi que los una físicamente.';
+    return result;
+  }
+
+  // Redes distintas → se necesita gateway
+  if (!src.config.gateway){
+    result.reason = 'No se puede enviar fuera de la red: "'+src.name+'" no tiene una puerta de enlace configurada.';
+    return result;
+  }
+  if (!isValidIp(src.config.gateway)){
+    result.reason = 'La puerta de enlace configurada en "'+src.name+'" no es una IP válida.';
+    return result;
+  }
+  if (network(src.config.gateway, src.config.mask) !== srcNet){
+    result.reason = 'La puerta de enlace de "'+src.name+'" ('+src.config.gateway+') no pertenece a su propia subred. Revisa la máscara o la IP del gateway.';
+    return result;
+  }
+  const gw = findRouterInterfaceByIp(src.config.gateway, new Set());
+  if (!gw){
+    result.reason = 'La puerta de enlace de "'+src.name+'" ('+src.config.gateway+') no existe en ninguna interfaz de router de la red.';
+    return result;
+  }
+  const pathToGw = l2Bfs(srcVertex, gw.routerId + ':' + gw.portId);
+  if (!pathToGw){
+    result.reason = 'La puerta de enlace de "'+src.name+'" no responde: sin conexión física/inalámbrica hasta el router "'+nodes[gw.routerId].name+'".';
+    return result;
+  }
+
+  const pathAcc = [...pathToGw];
+  const visited = new Set([gw.routerId]);
+  const routing = routeFromRouter(gw.routerId, gw.portId, dst, visited, 1, pathAcc);
+  if (!routing.ok){
+    result.reason = routing.reason;
+    result.path = pathAcc; // para animar hasta el punto de falla
+    return result;
+  }
+  result.ok = true;
+  result.path = pathAcc;
+  result.mode = 'routed';
+  return result;
+}
+
+/* =========================================================================
+   ESTADO DE UI
+   ========================================================================= */
+
+let selectedId = null;      // dispositivo o enlace seleccionado
+let selectedKind = null;    // 'node' | 'link'
+let connectMedia = null;    // null | 'cable' | 'wifi'
+let pendingConn = null;     // {nodeId, portId}
+let dragging = null;        // {nodeId, offsetX, offsetY}
+
+const $ = sel => document.querySelector(sel);
+const canvas = $('#canvas');
+const svg = $('#link-svg');
+const emptyHint = $('#empty-hint');
+
+/* =========================================================================
+   ICONOS
+   ========================================================================= */
+
+function deviceIcon(type){
+  const icons = {
+    pc: '<svg viewBox="0 0 24 24" stroke-width="1.6"><rect x="3" y="4" width="18" height="12" rx="1.2"/><path d="M9 20h6M12 16v4"/></svg>',
+    laptop: '<svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M5 5h14v10H5z"/><path d="M2 19h20l-2-4H4z"/></svg>',
+    phone: '<svg viewBox="0 0 24 24" stroke-width="1.6"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 19h2"/></svg>',
+    switch: '<svg viewBox="0 0 24 24" stroke-width="1.6"><rect x="2" y="8" width="20" height="8" rx="1.2"/><path d="M5 8V6M9 8V6M13 8V6M17 8V6M5 16v2M9 16v2M13 16v2M17 16v2"/></svg>',
+    router: '<svg viewBox="0 0 24 24" stroke-width="1.6"><rect x="3" y="10" width="18" height="7" rx="1.2"/><path d="M8 10 6 4M16 10l2-6M11 10V7"/><path d="M6 17v2M10 17v2M14 17v2M18 17v2"/></svg>',
+    homerouter: '<svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M3 11 12 4l9 7"/><path d="M5 10v9h14v-9"/><path d="M9 19v-5h6v5"/><path d="M15 10.5v-3h2v4.6"/></svg>',
+    internet: '<svg viewBox="0 0 24 24" stroke-width="1.6"><path d="M7 18a4 4 0 1 1 .4-7.98 5 5 0 0 1 9.5 1.2A3.5 3.5 0 0 1 16.5 18H7z"/></svg>'
+  };
+  return icons[type] || '';
+}
+
+/* =========================================================================
+   RENDERIZADO
+   ========================================================================= */
+
+function render(){
+  renderNodes();
+  renderLinks();
+  renderSidebarSelects();
+  updateConnectBanner();
+  emptyHint.style.display = Object.keys(nodes).length ? 'none' : 'block';
+  saveAutosave();
+}
+
+function updateConnectBanner(){
+  const banner = $('#connect-banner');
+  const wrap = $('#canvas-wrap');
+  wrap.classList.toggle('connecting', !!connectMedia);
+  if (!connectMedia){
+    banner.style.display = 'none';
+    return;
+  }
+  banner.style.display = 'flex';
+  const dot = $('#cb-dot');
+  const mediaLabel = connectMedia==='wifi' ? 'WiFi' : 'Cable UTP';
+  if (!pendingConn){
+    dot.classList.remove('step2');
+    $('#cb-text').textContent = `Modo ${mediaLabel}: haz clic en el primer dispositivo`;
+  } else {
+    dot.classList.add('step2');
+    const highlightLabel = connectMedia==='wifi' ? 'se resaltan en turquesa los compatibles' : 'se resaltan en cobre los compatibles';
+    $('#cb-text').textContent = `Ahora haz clic en el segundo dispositivo para unirlo por ${mediaLabel} (${highlightLabel})`;
+  }
+}
+
+function nodeNeedsConfigWarning(n){
+  if (n.type === 'switch' || n.type === 'internet') return false;
+  if (n.type === 'router' || n.type === 'homerouter'){
+    return Object.values(n.config.interfaces).every(i => !i.ip);
+  }
+  return !n.config.ip;
+}
+
+function renderNodes(){
+  canvas.querySelectorAll('.device').forEach(el=>el.remove());
+  Object.values(nodes).forEach(n=>{
+    const el = document.createElement('div');
+    el.className = 'device';
+    el.dataset.id = n.id;
+    el.style.left = n.x + 'px';
+    el.style.top = n.y + 'px';
+    if (selectedKind==='node' && selectedId===n.id) el.classList.add('selected');
+    if (pendingConn && pendingConn.nodeId===n.id) el.classList.add('connect-armed');
+    if (nodeNeedsConfigWarning(n)) el.classList.add('no-config');
+    if (connectMedia && !(pendingConn && pendingConn.nodeId===n.id)){
+      const hasCompatiblePort = availablePorts(n.id, connectMedia).length > 0;
+      el.classList.add(hasCompatiblePort ? ('compat-'+connectMedia) : 'dim-incompatible');
+    }
+
+    let ipLine = '';
+    if (n.type === 'router' || n.type === 'homerouter'){
+      const ips = Object.values(n.config.interfaces).map(i=>i.ip).filter(Boolean);
+      ipLine = ips.length ? ips.join(' · ') : 'sin configurar';
+    } else if (n.type !== 'switch'){
+      ipLine = n.config.ip || 'sin IP';
+    }
+
+    el.innerHTML = `
+      <div class="device-icon-box">${deviceIcon(n.type)}</div>
+      <div class="device-name">${escapeHtml(n.name)}</div>
+      ${n.type!=='switch' ? `<div class="device-ip ${ipLine==='sin configurar'||ipLine==='sin IP'?'empty':''}">${escapeHtml(ipLine)}</div>` : ''}
+    `;
+    canvas.appendChild(el);
+
+    el.addEventListener('mousedown', (e)=> onNodeMouseDown(e, n.id));
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); onNodeClick(n.id); });
+    el.addEventListener('dblclick', (e)=>{ e.stopPropagation(); openConfigModal(n.id); });
+  });
+}
+
+function portPosition(nodeId, portId){
+  const n = nodes[nodeId];
+  const el = canvas.querySelector('.device[data-id="'+nodeId+'"]');
+  if (!n || !el) return {x:0,y:0};
+  const cx = n.x + 42, cy = n.y + 28; // centro del icono (84 ancho / 56 alto approx)
+  // Distribuir puertos alrededor del icono para que las líneas no se amontonen todas al centro,
+  // pero sin salirse nunca del icono (56px de ancho), sin importar cuántos puertos tenga el dispositivo.
+  const type = n.type;
+  const ports = DEVICE_TYPES[type].ports;
+  const idx = ports.findIndex(p=>p.id===portId);
+  if (ports.length <= 1) return {x:cx, y:cy};
+  const maxSpreadWidth = 30; // ancho total a repartir, dentro del icono de 56px
+  const spread = maxSpreadWidth / (ports.length - 1);
+  const offset = (idx - (ports.length-1)/2) * spread;
+  return {x: cx + offset, y: cy};
+}
+
+function renderLinks(){
+  svg.innerHTML = '';
+  Object.values(links).forEach(l=>{
+    const pa = portPosition(l.a.nodeId, l.a.portId);
+    const pb = portPosition(l.b.nodeId, l.b.portId);
+    const isWifi = l.media === 'wifi';
+
+    const hit = document.createElementNS('http://www.w3.org/2000/svg','line');
+    hit.setAttribute('x1', pa.x); hit.setAttribute('y1', pa.y);
+    hit.setAttribute('x2', pb.x); hit.setAttribute('y2', pb.y);
+    hit.setAttribute('class','link-hit');
+    hit.addEventListener('click', (e)=>{ e.stopPropagation(); onLinkClick(l.id); });
+    svg.appendChild(hit);
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y);
+    line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+    line.setAttribute('class', 'link-line' + (isWifi?' wifi':'') + (selectedKind==='link'&&selectedId===l.id?' selected':''));
+    line.dataset.linkId = l.id;
+    svg.appendChild(line);
+
+    if (selectedKind==='link' && selectedId===l.id){
+      const mx = (pa.x+pb.x)/2, my = (pa.y+pb.y)/2;
+      const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+      g.setAttribute('class','link-del-btn');
+      g.setAttribute('transform', `translate(${mx},${my})`);
+      g.innerHTML = '<circle r="10"/><text y="1">✕</text>';
+      g.addEventListener('click',(e)=>{ e.stopPropagation(); deleteLink(l.id); });
+      svg.appendChild(g);
+    }
+  });
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* =========================================================================
+   INTERACCIÓN: agregar dispositivos
+   ========================================================================= */
+
+let placeCascade = 0;
+document.querySelectorAll('.pal-item[data-type]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const type = btn.dataset.type;
+    const x = 140 + (placeCascade % 8) * 40;
+    const y = 100 + (placeCascade % 8) * 34;
+    placeCascade++;
+    const n = newNode(type, x, y);
+    nodes[n.id] = n;
+    render();
+  });
+});
+
+/* =========================================================================
+   INTERACCIÓN: arrastrar dispositivos
+   ========================================================================= */
+
+function onNodeMouseDown(e, nodeId){
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const n = nodes[nodeId];
+  const wrapRect = $('#canvas-wrap').getBoundingClientRect();
+  const scrollLeft = $('#canvas-wrap').scrollLeft, scrollTop = $('#canvas-wrap').scrollTop;
+  dragging = {
+    nodeId,
+    startX: e.clientX, startY: e.clientY,
+    origX: n.x, origY: n.y,
+    moved:false
+  };
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('mouseup', onDragEnd);
+}
+function onDragMove(e){
+  if (!dragging) return;
+  const dx = e.clientX - dragging.startX;
+  const dy = e.clientY - dragging.startY;
+  if (Math.abs(dx)>3 || Math.abs(dy)>3) dragging.moved = true;
+  const n = nodes[dragging.nodeId];
+  n.x = Math.max(0, dragging.origX + dx);
+  n.y = Math.max(0, dragging.origY + dy);
+  const el = canvas.querySelector('.device[data-id="'+n.id+'"]');
+  if (el){ el.style.left=n.x+'px'; el.style.top=n.y+'px'; el.classList.add('dragging'); }
+  renderLinks();
+}
+function onDragEnd(){
+  if (dragging){
+    const el = canvas.querySelector('.device[data-id="'+dragging.nodeId+'"]');
+    if (el) el.classList.remove('dragging');
+    if (dragging.moved) saveAutosave();
+  }
+  dragging = null;
+  document.removeEventListener('mousemove', onDragMove);
+  document.removeEventListener('mouseup', onDragEnd);
+}
+
+/* =========================================================================
+   INTERACCIÓN: modo "Cable UTP" / "WiFi" (conectar dispositivos)
+   ========================================================================= */
+
+function setConnectMedia(media){
+  connectMedia = (connectMedia === media) ? null : media;
+  pendingConn = null;
+  $('#tool-cable').classList.toggle('active', connectMedia==='cable');
+  $('#tool-wifi').classList.toggle('active', connectMedia==='wifi');
+  hidePortPopover();
+  clearSelection();
+  render();
+}
+$('#tool-cable').addEventListener('click', ()=> setConnectMedia('cable'));
+$('#tool-wifi').addEventListener('click', ()=> setConnectMedia('wifi'));
+
+$('#cb-cancel').addEventListener('click', ()=>{
+  if (pendingConn){
+    pendingConn = null;
+    hidePortPopover();
+    render();
+  } else {
+    connectMedia = null;
+    $('#tool-cable').classList.remove('active');
+    $('#tool-wifi').classList.remove('active');
+    render();
+  }
+});
+
+document.addEventListener('keydown', (e)=>{
+  if (e.key !== 'Escape') return;
+  if (pendingConn){
+    pendingConn = null;
+    hidePortPopover();
+    render();
+  } else if (connectMedia){
+    connectMedia = null;
+    $('#tool-cable').classList.remove('active');
+    $('#tool-wifi').classList.remove('active');
+    render();
+  }
+});
+
+function availablePorts(nodeId, media){
+  const n = nodes[nodeId];
+  const type = DEVICE_TYPES[n.type];
+  let ports;
+  if (!type.multi){
+    // pc/laptop/phone: solo un enlace activo en total
+    ports = n.activePort ? [] : type.ports;
+  } else {
+    // switch / router: cada puerto se ocupa individualmente (salvo unlimited)
+    ports = type.ports.filter(p=>{
+      if (p.unlimited) return true;
+      const occupied = Object.values(links).some(l =>
+        (l.a.nodeId===nodeId && l.a.portId===p.id) || (l.b.nodeId===nodeId && l.b.portId===p.id)
+      );
+      return !occupied;
+    });
+  }
+  if (media) ports = ports.filter(p=>p.media===media);
+  return ports;
+}
+
+// Cuadrícula visual de puertos físicos (para switch, router y router doméstico):
+// cada puerto se ve como un "LED" apagado si está libre, encendido si ya tiene un cable/wifi.
+function renderPortsGrid(node){
+  const ports = DEVICE_TYPES[node.type].ports;
+  let occupiedCount = 0;
+  const chips = ports.map(p=>{
+    const linksOnPort = Object.values(links).filter(l =>
+      (l.a.nodeId===node.id && l.a.portId===p.id) || (l.b.nodeId===node.id && l.b.portId===p.id)
+    );
+    const occ = linksOnPort.length > 0;
+    if (occ) occupiedCount++;
+    const countBadge = (p.unlimited && linksOnPort.length > 0) ? ` (${linksOnPort.length})` : '';
+    const titleTxt = occ
+      ? escapeHtml(p.label) + ' — ocupado' + (p.unlimited ? ' · '+linksOnPort.length+' conectado(s)' : '')
+      : escapeHtml(p.label) + ' — libre';
+    return `<div class="port-chip ${occ?'occupied':''}" title="${titleTxt}">
+      <div class="port-led"></div>
+      <div class="port-name">${escapeHtml(p.label)}${countBadge}</div>
+    </div>`;
+  }).join('');
+  return `<div class="ports-section">
+    <div class="ports-label">Puertos (${occupiedCount}/${ports.length} ocupados)</div>
+    <div class="ports-grid">${chips}</div>
+  </div>`;
+}
+
+function onNodeClick(nodeId){
+  if (!connectMedia){
+    clearLinkSelection();
+    selectedKind = 'node'; selectedId = nodeId;
+    render();
+    showContextBarForNode(nodeId);
+    return;
+  }
+  // Modo Cable UTP o WiFi (ya fijo por el botón activo)
+  const mediaLabel = connectMedia==='wifi' ? 'WiFi' : 'cable';
+  const ports = availablePorts(nodeId, connectMedia);
+  if (!pendingConn){
+    if (ports.length === 0){
+      showToast('Este dispositivo no tiene puertos libres de '+mediaLabel+'.');
+      return;
+    }
+    if (ports.length === 1){
+      pendingConn = { nodeId, portId: ports[0].id };
+      render();
+    } else {
+      showPortPopover(nodeId, ports, (portId)=>{
+        pendingConn = { nodeId, portId };
+        render();
+      });
+    }
+    return;
+  }
+  if (pendingConn.nodeId === nodeId){
+    pendingConn = null;
+    render();
+    return;
+  }
+  const otherPorts = availablePorts(nodeId, connectMedia);
+  if (otherPorts.length === 0){
+    showToast('Este dispositivo no tiene puertos libres de '+mediaLabel+'.');
+    return;
+  }
+  const finish = (portId)=>{
+    createLink(pendingConn.nodeId, pendingConn.portId, nodeId, portId, connectMedia);
+    pendingConn = null;
+    connectMedia = null;
+    $('#tool-cable').classList.remove('active');
+    $('#tool-wifi').classList.remove('active');
+    render();
+  };
+  if (otherPorts.length === 1) finish(otherPorts[0].id);
+  else showPortPopover(nodeId, otherPorts, finish);
+}
+
+function portMedia(nodeId, portId){
+  const n = nodes[nodeId];
+  const p = DEVICE_TYPES[n.type].ports.find(p=>p.id===portId);
+  return p ? p.media : null;
+}
+
+function createLink(nodeA, portA, nodeB, portB, media){
+  const id = genId('l');
+  links[id] = { id, a:{nodeId:nodeA, portId:portA}, b:{nodeId:nodeB, portId:portB}, media };
+  // marcar activePort en dispositivos de una sola conexión
+  [ [nodeA,portA], [nodeB,portB] ].forEach(([nid,pid])=>{
+    const n = nodes[nid];
+    if (!DEVICE_TYPES[n.type].multi) n.activePort = pid;
+  });
+  logConsole(`Enlace creado: ${nodes[nodeA].name} (${portA.toUpperCase()}) ⟷ ${nodes[nodeB].name} (${portB.toUpperCase()}) — ${media==='wifi'?'WiFi':'Cable UTP'}`, 'dim');
+}
+
+function deleteLink(linkId){
+  const l = links[linkId];
+  if (!l) return;
+  [l.a, l.b].forEach(({nodeId,portId})=>{
+    const n = nodes[nodeId];
+    if (n && !DEVICE_TYPES[n.type].multi && n.activePort===portId) n.activePort = null;
+  });
+  delete links[linkId];
+  clearSelection();
+  render();
+}
+
+/* ---------- Popover de selección de puerto ---------- */
+function showPortPopover(nodeId, ports, onPick){
+  const pop = $('#port-popover');
+  const n = nodes[nodeId];
+  const nodeEl = canvas.querySelector('.device[data-id="'+nodeId+'"]');
+  const wrapRect = $('#canvas-wrap').getBoundingClientRect();
+  const nodeRect = nodeEl.getBoundingClientRect();
+  pop.style.left = (nodeRect.right - wrapRect.left + $('#canvas-wrap').scrollLeft + 8) + 'px';
+  pop.style.top = (nodeRect.top - wrapRect.top + $('#canvas-wrap').scrollTop) + 'px';
+  pop.innerHTML = `<div class="pp-title">Elegir puerto en ${escapeHtml(n.name)}</div>` +
+    ports.map(p=>`<button data-port="${p.id}">${escapeHtml(p.label)} · ${p.media==='wifi'?'WiFi':'Cable'}</button>`).join('');
+  pop.style.display = 'block';
+  pop.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      hidePortPopover();
+      onPick(b.dataset.port);
+    });
+  });
+}
+function hidePortPopover(){ $('#port-popover').style.display='none'; }
+
+/* ---------- Selección de enlaces ---------- */
+function onLinkClick(linkId){
+  if (connectMedia) return;
+  selectedKind = 'link'; selectedId = linkId;
+  hideContextBar();
+  render();
+}
+function clearLinkSelection(){
+  if (selectedKind === 'link'){ selectedId=null; selectedKind=null; }
+}
+function clearSelection(){
+  selectedId = null; selectedKind = null;
+  hideContextBar();
+}
+
+$('#canvas-wrap').addEventListener('click', (e)=>{
+  if (e.target === canvas || e.target.id==='canvas-wrap' || e.target.id==='link-svg' || e.target.id==='empty-hint'){
+    if (pendingConn){ pendingConn = null; }
+    clearSelection();
+    hidePortPopover();
+    render();
+  }
+});
+
+/* ---------- Barra contextual (Configurar / Eliminar) ---------- */
+function showContextBarForNode(nodeId){
+  const bar = $('#context-bar');
+  const n = nodes[nodeId];
+  bar.innerHTML = `
+    <button id="ctx-config">⚙ Configurar</button>
+    <button id="ctx-rename">✎ Renombrar</button>
+    <button class="danger" id="ctx-delete">🗑 Eliminar</button>
+  `;
+  bar.style.display = 'flex';
+  $('#ctx-config').onclick = ()=> openConfigModal(nodeId);
+  $('#ctx-rename').onclick = ()=>{
+    const name = prompt('Nuevo nombre para el dispositivo:', n.name);
+    if (name && name.trim()){ n.name = name.trim(); render(); showContextBarForNode(nodeId); }
+  };
+  $('#ctx-delete').onclick = ()=> deleteNode(nodeId);
+}
+function hideContextBar(){ $('#context-bar').style.display='none'; }
+
+function deleteNode(nodeId){
+  Object.values(links).filter(l=>l.a.nodeId===nodeId||l.b.nodeId===nodeId).forEach(l=>{
+    // Liberar el puerto del OTRO extremo del cable/wifi (el nodo que sí sobrevive),
+    // igual que hace deleteLink() al borrar un enlace individual.
+    [l.a, l.b].forEach(({nodeId:endNodeId, portId})=>{
+      if (endNodeId === nodeId) return; // este extremo pertenece al nodo que se está borrando
+      const n = nodes[endNodeId];
+      if (n && !DEVICE_TYPES[n.type].multi && n.activePort===portId) n.activePort = null;
+    });
+    delete links[l.id];
+  });
+  delete nodes[nodeId];
+  clearSelection();
+  render();
+}
+
+/* =========================================================================
+   MODAL DE CONFIGURACIÓN
+   ========================================================================= */
+
+function openConfigModal(nodeId){
+  const n = nodes[nodeId];
+  const overlay = $('#modal-overlay');
+  const modal = $('#modal');
+
+  if (n.type === 'switch'){
+    modal.innerHTML = `
+      <div class="modal-head">${iconSvgAccent(n.type)}<div><div class="mh-title">${escapeHtml(n.name)}</div><div class="mh-sub">Switch · capa 2</div></div><button class="btn-close-x" id="m-close">✕</button></div>
+      <div class="modal-body">
+        <p style="font-size:12.5px;color:var(--text-dim);line-height:1.5;">
+          Los switches no requieren dirección IP para reenviar tráfico: conectan de forma transparente todos los dispositivos enchufados a sus puertos dentro de la misma red.
+        </p>
+        ${renderPortsGrid(n)}
+      </div>
+      <div class="modal-foot"><button class="btn-secondary" id="m-cancel">Cerrar</button></div>
+    `;
+    bindModalClose();
+    overlay.style.display = 'flex';
+    return;
+  }
+
+  if (n.type === 'internet'){
+    modal.innerHTML = `
+      <div class="modal-head">${iconSvgAccent(n.type)}<div><div class="mh-title">${escapeHtml(n.name)}</div><div class="mh-sub">Internet (nube)</div></div><button class="btn-close-x" id="m-close">✕</button></div>
+      <div class="modal-body">
+        <p style="font-size:12.5px;color:var(--text-dim);line-height:1.5;margin-top:0;">
+          Representa el acceso a Internet. Conéctala al puerto WAN0 (o a cualquier puerto libre) de uno o varios routers: cualquier dispositivo con una ruta hasta ella podrá "hacer ping a Internet". No necesita máscara ni gateway propios.
+        </p>
+        <div class="field" data-f="ip">
+          <label>IP de referencia (destino de prueba)</label>
+          <input type="text" id="m-ip" value="${escapeHtml(n.config.ip)}" placeholder="8.8.8.8">
+          <div class="field-err">IP inválida</div>
+          <div class="hint">Aparece en el probador de red como el destino "Internet".</div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-secondary" id="m-cancel">Cancelar</button>
+        <button class="btn-primary" style="width:auto;padding:9px 18px;" id="m-save">Guardar</button>
+      </div>
+    `;
+    bindModalClose();
+    $('#m-save').onclick = ()=>{
+      const ip = $('#m-ip').value.trim();
+      const field = modal.querySelector('[data-f="ip"]');
+      field.classList.remove('has-error');
+      if (!ip || !isValidIp(ip)){ field.classList.add('has-error'); return; }
+      n.config.ip = ip;
+      overlay.style.display='none';
+      render();
+    };
+    overlay.style.display = 'flex';
+    return;
+  }
+
+  if (n.type === 'router' || n.type === 'homerouter'){
+    const ifaceBlock = (portId, label, mediaLabel) => {
+      const i = n.config.interfaces[portId];
+      return `
+        <div class="iface-block">
+          <div class="iface-title">${label} <span style="color:var(--text-faint);font-weight:400;">(${mediaLabel})</span></div>
+          <div class="row-2">
+            <div class="field" data-f="ip-${portId}">
+              <label>Dirección IP</label>
+              <input type="text" data-field="ip" data-iface="${portId}" value="${escapeHtml(i.ip)}" placeholder="192.168.1.1">
+              <div class="field-err">IP inválida</div>
+            </div>
+            <div class="field" data-f="mask-${portId}">
+              <label>Máscara de subred</label>
+              <input type="text" data-field="mask" data-iface="${portId}" value="${escapeHtml(i.mask)}" placeholder="255.255.255.0 ó /24">
+              <div class="field-err">Máscara inválida</div>
+            </div>
+          </div>
+          <div class="field">
+            <label>DNS (opcional)</label>
+            <input type="text" data-field="dns" data-iface="${portId}" value="${escapeHtml(i.dns)}" placeholder="8.8.8.8">
+          </div>
+        </div>`;
+    };
+    const isHome = n.type === 'homerouter';
+    modal.innerHTML = `
+      <div class="modal-head">${iconSvgAccent(n.type)}<div><div class="mh-title">${escapeHtml(n.name)}</div><div class="mh-sub">${isHome ? 'Router doméstico · switch interno + WiFi + WAN' : 'Router · interconecta redes'}</div></div><button class="btn-close-x" id="m-close">✕</button></div>
+      <div class="modal-body">
+        ${renderPortsGrid(n)}
+        ${isHome
+          ? `<p style="font-size:12px;color:var(--text-dim);line-height:1.5;margin-top:0;">Los 4 puertos LAN y el WiFi están puenteados internamente: todos comparten la misma red. La WAN es la conexión hacia tu proveedor de Internet (o hacia otro router/nube).</p>
+             ${ifaceBlock('lan','Red local (LAN1-4 + WiFi)','todos puenteados')}
+             ${ifaceBlock('wan','WAN','cable · hacia Internet')}`
+          : `${ifaceBlock('lan0','LAN0','cable')}
+             ${ifaceBlock('lan1','LAN1','cable')}
+             ${ifaceBlock('wifi0','WiFi','inalámbrico')}
+             ${ifaceBlock('wan0','WAN0','cable · hacia Internet')}`
+        }
+        <div class="iface-block" style="border-color:var(--copper-dim);">
+          <div class="iface-title" style="color:var(--copper);">Ruta predeterminada (uplink)</div>
+          <div class="field">
+            <label>${isHome ? 'IP del proveedor de Internet (ISP) o del siguiente router' : 'IP del siguiente router (para unir esta red con otra red externa)'}</label>
+            <input type="text" id="m-defgw" value="${escapeHtml(n.config.defaultGateway)}" placeholder="Opcional, p. ej. 10.0.0.1">
+            <div class="hint">Déjalo vacío si este router no necesita salir hacia otra red.</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-secondary" id="m-cancel">Cancelar</button>
+        <button class="btn-primary" style="width:auto;padding:9px 18px;" id="m-save">Guardar</button>
+      </div>
+    `;
+    bindModalClose();
+    $('#m-save').onclick = ()=>{
+      let ok = true;
+      modal.querySelectorAll('input[data-field]').forEach(inp=>{
+        const field = inp.dataset.field, iface = inp.dataset.iface;
+        const wrap = inp.closest('.field');
+        wrap.classList.remove('has-error');
+        const val = inp.value.trim();
+        if (field==='ip' && val && !isValidIp(val)){ wrap.classList.add('has-error'); ok=false; }
+        if (field==='mask' && val && !isValidMask(val)){ wrap.classList.add('has-error'); ok=false; }
+      });
+      if (!ok) return;
+      modal.querySelectorAll('input[data-field]').forEach(inp=>{
+        const field = inp.dataset.field, iface = inp.dataset.iface;
+        let val = inp.value.trim();
+        if (field==='mask' && val) val = normalizeMask(val);
+        n.config.interfaces[iface][field] = val;
+      });
+      n.config.defaultGateway = $('#m-defgw').value.trim();
+      overlay.style.display='none';
+      render();
+    };
+    overlay.style.display = 'flex';
+    return;
+  }
+
+  // pc / laptop / phone
+  modal.innerHTML = `
+    <div class="modal-head">${iconSvgAccent(n.type)}<div><div class="mh-title">${escapeHtml(n.name)}</div><div class="mh-sub">${DEVICE_TYPES[n.type].label}</div></div><button class="btn-close-x" id="m-close">✕</button></div>
+    <div class="modal-body">
+      <div class="row-2">
+        <div class="field" data-f="ip">
+          <label>Dirección IP</label>
+          <input type="text" id="m-ip" value="${escapeHtml(n.config.ip)}" placeholder="192.168.1.10">
+          <div class="field-err">IP inválida</div>
+        </div>
+        <div class="field" data-f="mask">
+          <label>Máscara de subred</label>
+          <input type="text" id="m-mask" value="${escapeHtml(n.config.mask)}" placeholder="255.255.255.0 ó /24">
+          <div class="field-err">Máscara inválida</div>
+        </div>
+      </div>
+      <div class="field" data-f="gw">
+        <label>Puerta de enlace predeterminada</label>
+        <input type="text" id="m-gw" value="${escapeHtml(n.config.gateway)}" placeholder="192.168.1.1 (opcional si es red local)">
+        <div class="field-err">IP inválida</div>
+      </div>
+      <div class="field">
+        <label>DNS preferido (opcional)</label>
+        <input type="text" id="m-dns" value="${escapeHtml(n.config.dns)}" placeholder="8.8.8.8">
+      </div>
+      <div class="hint">Conexión activa: ${n.activePort ? (portMedia(n.id,n.activePort)==='wifi'?'WiFi':'Cable UTP') + ' ('+n.activePort.toUpperCase()+')' : 'ninguna — usa «Cable UTP» o «WiFi» para conectar'}</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" id="m-cancel">Cancelar</button>
+      <button class="btn-primary" style="width:auto;padding:9px 18px;" id="m-save">Guardar</button>
+    </div>
+  `;
+  bindModalClose();
+  $('#m-save').onclick = ()=>{
+    let ok = true;
+    const ip = $('#m-ip').value.trim(), mask = $('#m-mask').value.trim(), gw = $('#m-gw').value.trim();
+    document.querySelectorAll('#modal .field').forEach(f=>f.classList.remove('has-error'));
+    if (ip && !isValidIp(ip)){ modal.querySelector('[data-f="ip"]').classList.add('has-error'); ok=false; }
+    if (mask && !isValidMask(mask)){ modal.querySelector('[data-f="mask"]').classList.add('has-error'); ok=false; }
+    if (gw && !isValidIp(gw)){ modal.querySelector('[data-f="gw"]').classList.add('has-error'); ok=false; }
+    if (!ok) return;
+    n.config.ip = ip;
+    n.config.mask = mask ? normalizeMask(mask) : '';
+    n.config.gateway = gw;
+    n.config.dns = $('#m-dns').value.trim();
+    overlay.style.display='none';
+    render();
+  };
+  overlay.style.display = 'flex';
+}
+
+function iconSvgAccent(type){ return deviceIcon(type); }
+
+function bindModalClose(){
+  $('#m-close').onclick = ()=>{ $('#modal-overlay').style.display='none'; };
+  const cancel = $('#m-cancel');
+  if (cancel) cancel.onclick = ()=>{ $('#modal-overlay').style.display='none'; };
+}
+$('#modal-overlay').addEventListener('click', (e)=>{
+  if (e.target.id==='modal-overlay') $('#modal-overlay').style.display='none';
+});
+
+/* =========================================================================
+   SIDEBAR: selects de origen/destino
+   ========================================================================= */
+
+function renderSidebarSelects(){
+  const originDevices = Object.values(nodes).filter(n=>n.type==='pc'||n.type==='laptop'||n.type==='phone');
+  const destDevices = originDevices.concat(Object.values(nodes).filter(n=>n.type==='internet'));
+  const optsFor = list => list.map(n=>`<option value="${n.id}">${escapeHtml(n.name)} ${n.config.ip?('— '+escapeHtml(n.config.ip)):''}</option>`).join('');
+  const selO = $('#sel-origen'), selD = $('#sel-destino');
+  const prevO = selO.value, prevD = selD.value;
+  selO.innerHTML = '<option value="">— elegir —</option>' + optsFor(originDevices);
+  selD.innerHTML = '<option value="">— elegir —</option>' + optsFor(destDevices);
+  if (nodes[prevO]) selO.value = prevO;
+  if (nodes[prevD]) selD.value = prevD;
+  $('#btn-ping').disabled = originDevices.length < 1 || destDevices.length < 2;
+}
+
+/* =========================================================================
+   CONSOLA
+   ========================================================================= */
+
+function logConsole(text, cls){
+  const c = $('#console');
+  const line = document.createElement('div');
+  line.className = 'line' + (cls?(' '+cls):'');
+  line.textContent = text;
+  c.appendChild(line);
+  c.scrollTop = c.scrollHeight;
+}
+function logSep(){
+  const c = $('#console');
+  const line = document.createElement('div');
+  line.className = 'sep';
+  c.appendChild(line);
+  c.scrollTop = c.scrollHeight;
+}
+$('#btn-clear-console').addEventListener('click', ()=>{ $('#console').innerHTML=''; });
+
+/* =========================================================================
+   PROBADOR — ejecutar ping + animación
+   ========================================================================= */
+
+$('#btn-ping').addEventListener('click', ()=>{
+  const srcId = $('#sel-origen').value, dstId = $('#sel-destino').value;
+  if (!srcId || !dstId){ showToast('Elige un dispositivo de origen y uno de destino.'); return; }
+  if (srcId === dstId){ showToast('El origen y el destino deben ser diferentes.'); return; }
+  $('#btn-ping').disabled = true;
+  const result = runPing(srcId, dstId);
+  logSep();
+  logConsole(`C:\\> ping ${result.dst.config.ip || '?'}  [ desde ${result.src.name} ]`, null);
+  animateAndReport(result);
+});
+
+function animateAndReport(result){
+  const path = result.path || [];
+  if (path.length === 0){
+    finishReport(result);
+    return;
+  }
+  let i = 0;
+  const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  dot.setAttribute('r', 6);
+  dot.setAttribute('class','packet-dot');
+  svg.appendChild(dot);
+
+  function stepAt(idx){
+    const v = path[idx].vertex;
+    const nid = vertexToNodeId(v);
+    const n = nodes[nid];
+    return n ? {x:n.x+42, y:n.y+28} : {x:0,y:0};
+  }
+
+  function playHop(idx){
+    if (idx >= path.length - 1){
+      const final = stepAt(path.length-1);
+      dot.setAttribute('cx', final.x); dot.setAttribute('cy', final.y);
+      dot.setAttribute('class', 'packet-dot ' + (result.ok ? 'ok':'fail'));
+      setTimeout(()=>{ dot.remove(); finishReport(result); }, 350);
+      return;
+    }
+    const from = stepAt(idx), to = stepAt(idx+1);
+    const midNode = nodes[vertexToNodeId(path[idx+1].vertex)];
+    const duration = 480;
+    const start = performance.now();
+    dot.setAttribute('cx', from.x); dot.setAttribute('cy', from.y);
+
+    if (idx===0){
+      logConsole(`Enviando solicitud de eco desde ${result.src.name}...`, 'dim');
+    }
+
+    function frame(t){
+      const p = Math.min(1, (t-start)/duration);
+      dot.setAttribute('cx', from.x + (to.x-from.x)*p);
+      dot.setAttribute('cy', from.y + (to.y-from.y)*p);
+      if (p < 1) requestAnimationFrame(frame);
+      else {
+        if (midNode && idx+1 < path.length-1){
+          const label = midNode.type==='switch' ? 'conmuta el paquete en' : 'enruta el paquete en';
+          logConsole(`  → pasa por ${midNode.name} (${DEVICE_TYPES[midNode.type].label}) — ${label} el siguiente enlace`, 'hop');
+        }
+        playHop(idx+1);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  playHop(0);
+}
+
+function finishReport(result){
+  if (result.ok){
+    logConsole(`Respuesta desde ${result.dst.config.ip}: bytes=32 tiempo=${4+Math.floor(Math.random()*20)}ms TTL=${result.mode==='local'?64:63}`, 'ok');
+    logConsole(`Paquetes: enviados = 1, recibidos = 1, perdidos = 0 (0% de pérdida). ${result.mode==='routed'?'Ruta: a través de router.':'Ruta: red local.'}`, 'ok');
+  } else {
+    logConsole('Se agotó el tiempo de espera de la solicitud.', 'fail');
+    logConsole('Diagnóstico: ' + result.reason, 'fail');
+  }
+  $('#btn-ping').disabled = false;
+}
+
+/* =========================================================================
+   TOAST
+   ========================================================================= */
+let toastTimer = null;
+function showToast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ t.style.display='none'; }, 4200);
+}
+
+/* =========================================================================
+   EXPORTAR COMO IMAGEN (PNG, fondo claro para imprimir)
+   ========================================================================= */
+
+function iconInnerMarkup(type){
+  const match = deviceIcon(type).match(/<svg[^>]*>([\s\S]*)<\/svg>/);
+  return match ? match[1] : '';
+}
+
+function measureTextWidth(text, font){
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  ctx.font = font;
+  return ctx.measureText(text).width;
+}
+
+function buildTopologySvgString(){
+  const nodeList = Object.values(nodes);
+  const pad = 60, headerH = 60, labelSpace = 65;
+  const minX = Math.min(...nodeList.map(n=>n.x)) - pad;
+  const minY = Math.min(...nodeList.map(n=>n.y)) - pad;
+  const maxX = Math.max(...nodeList.map(n=>n.x + 84)) + pad;
+  const maxY = Math.max(...nodeList.map(n=>n.y + labelSpace)) + pad;
+  const deviceWidth = maxX - minX;
+  const height = Math.max(300, (maxY - minY) + headerH);
+
+  const titleText = 'Unidad Educativa Ati II Pillahuaso — Topología de red';
+  const titleFont = 'bold 16px Arial, Helvetica, sans-serif';
+  const logoReserve = 130; // espacio del logo a la izquierda del título
+  const sidePad = 30;
+  const minWidthForTitle = measureTextWidth(titleText, titleFont) + logoReserve + sidePad;
+
+  const width = Math.max(400, deviceWidth, minWidthForTitle);
+  // Si el lienzo de dispositivos es más angosto que lo que necesita el título,
+  // centramos los dispositivos dentro del ancho final para que no queden pegados a la izquierda.
+  const xShift = (width - deviceWidth) / 2;
+
+  let linksSvg = '';
+  Object.values(links).forEach(l=>{
+    const pa = portPosition(l.a.nodeId, l.a.portId);
+    const pb = portPosition(l.b.nodeId, l.b.portId);
+    const isWifi = l.media === 'wifi';
+    const stroke = isWifi ? '#0d9488' : '#b45309';
+    const dash = isWifi ? ' stroke-dasharray="6 5"' : '';
+    linksSvg += `<line x1="${(pa.x-minX+xShift).toFixed(1)}" y1="${(pa.y-minY+headerH).toFixed(1)}" x2="${(pb.x-minX+xShift).toFixed(1)}" y2="${(pb.y-minY+headerH).toFixed(1)}" stroke="${stroke}" stroke-width="2.5"${dash}/>`;
+  });
+
+  let nodesSvg = '';
+  nodeList.forEach(n=>{
+    const cx = n.x + 42 - minX + xShift, cy = n.y + 28 - minY + headerH;
+    nodesSvg += `<rect x="${(cx-28).toFixed(1)}" y="${(cy-28).toFixed(1)}" width="56" height="56" rx="10" fill="#ffffff" stroke="#334155" stroke-width="1.5"/>`;
+    nodesSvg += `<g transform="translate(${(cx-16).toFixed(1)},${(cy-16).toFixed(1)}) scale(${(32/24).toFixed(3)})" stroke="#1e293b" fill="none" stroke-width="1.6">${iconInnerMarkup(n.type)}</g>`;
+    nodesSvg += `<text x="${cx.toFixed(1)}" y="${(cy+45).toFixed(1)}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#0f172a">${escapeHtml(n.name)}</text>`;
+    let ipText = '';
+    if (n.type === 'router' || n.type === 'homerouter'){
+      ipText = Object.values(n.config.interfaces).map(i=>i.ip).filter(Boolean).join(' · ');
+    } else if (n.type !== 'switch'){
+      ipText = n.config.ip || '';
+    }
+    if (ipText){
+      nodesSvg += `<text x="${cx.toFixed(1)}" y="${(cy+60).toFixed(1)}" text-anchor="middle" font-family="Consolas, 'Courier New', monospace" font-size="10.5" fill="#475569">${escapeHtml(ipText)}</text>`;
+    }
+  });
+
+  const logoImg = document.querySelector('.brand-logo');
+  const logoSrc = logoImg ? logoImg.getAttribute('src') : '';
+  const logoSvg = logoSrc ? `<image x="18" y="12" width="36" height="36" href="${logoSrc}"/>` : '';
+  const titleSvg = `<text x="${(width/2).toFixed(1)}" y="36" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#0f172a">${escapeHtml(titleText)}</text>`;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width.toFixed(0)}" height="${height.toFixed(0)}" viewBox="0 0 ${width.toFixed(0)} ${height.toFixed(0)}">`
+    + `<rect x="0" y="0" width="${width.toFixed(0)}" height="${height.toFixed(0)}" fill="#ffffff"/>`
+    + logoSvg + titleSvg + linksSvg + nodesSvg
+    + `</svg>`;
+}
+
+function exportTopologyPNG(){
+  if (Object.keys(nodes).length === 0){
+    showToast('No hay nada que exportar: el lienzo está vacío.');
+    return;
+  }
+  const svgString = buildTopologySvgString();
+  const scale = 2; // exportar a 2x para mejor resolución de impresión
+  const widthMatch = /width="(\d+)"/.exec(svgString);
+  const heightMatch = /height="(\d+)"/.exec(svgString);
+  const w = widthMatch ? parseInt(widthMatch[1],10) : 800;
+  const h = heightMatch ? parseInt(heightMatch[1],10) : 600;
+
+  const svgBlob = new Blob([svgString], {type:'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  img.onload = () => {
+    const canvasEl = document.createElement('canvas');
+    canvasEl.width = w * scale;
+    canvasEl.height = h * scale;
+    const ctx = canvasEl.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvasEl.width, canvasEl.height);
+    ctx.drawImage(img, 0, 0, canvasEl.width, canvasEl.height);
+    URL.revokeObjectURL(url);
+    canvasEl.toBlob((blob)=>{
+      if (!blob){ showToast('No se pudo generar la imagen PNG.'); return; }
+      const dlUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = dlUrl; a.download = 'topologia-red.png';
+      a.click();
+      URL.revokeObjectURL(dlUrl);
+    }, 'image/png');
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    showToast('No se pudo generar la imagen PNG.');
+  };
+  img.src = url;
+}
+
+$('#btn-export-png').addEventListener('click', exportTopologyPNG);
+
+/* =========================================================================
+   GUARDADO AUTOMÁTICO (localStorage del navegador)
+   ========================================================================= */
+
+const AUTOSAVE_KEY = 'simulador-redes-autosave-v1';
+
+function saveAutosave(){
+  try{
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ nodes, links, nextId }));
+  }catch(e){
+    // almacenamiento no disponible o lleno: no interrumpir el uso normal
+  }
+}
+function loadAutosave(){
+  try{
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || !data.nodes) return false;
+    nodes = data.nodes || {};
+    links = data.links || {};
+    nextId = data.nextId || 1;
+    return Object.keys(nodes).length > 0;
+  }catch(e){
+    return false;
+  }
+}
+function clearAutosave(){
+  try{ localStorage.removeItem(AUTOSAVE_KEY); }catch(e){}
+}
+
+/* =========================================================================
+   GUARDAR / ABRIR / VACIAR
+   ========================================================================= */
+
+$('#btn-export').addEventListener('click', ()=>{
+  const data = JSON.stringify({ nodes, links, nextId }, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'topologia-red.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+$('#btn-import').addEventListener('click', ()=> $('#file-import').click());
+$('#file-import').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const data = JSON.parse(reader.result);
+      nodes = data.nodes || {};
+      links = data.links || {};
+      nextId = data.nextId || 1;
+      clearSelection();
+      render();
+      logConsole('Topología cargada desde archivo.', 'dim');
+    }catch(err){
+      showToast('El archivo no es una topología válida.');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+$('#btn-clear').addEventListener('click', ()=>{
+  if (Object.keys(nodes).length===0) return;
+  if (!confirm('¿Vaciar todo el lienzo? Esta acción no se puede deshacer.')) return;
+  nodes = {}; links = {};
+  clearAutosave();
+  clearSelection();
+  render();
+  $('#console').innerHTML='';
+});
+
+/* =========================================================================
+   AYUDA
+   ========================================================================= */
+$('#btn-help').addEventListener('click', ()=>{
+  const overlay = $('#modal-overlay'), modal = $('#modal');
+  modal.innerHTML = `
+    <div class="modal-head"><div class="mh-title">Cómo usar el simulador</div><button class="btn-close-x" id="m-close">✕</button></div>
+    <div class="modal-body" style="font-size:12.5px;line-height:1.7;color:var(--text-dim);">
+      <b style="color:var(--text);">1. Agrega dispositivos</b><br>Haz clic en un ícono del panel izquierdo para colocarlo en el lienzo. Arrástralo para acomodarlo. Hay dos tipos de router: el <b>Router</b> (cada interfaz es una red separada, como en un equipo Cisco) y el <b>Router doméstico</b> (sus 4 puertos LAN y el WiFi están puenteados en una sola red, como el router de una casa; su WAN sale a Internet u otra red).<br><br>
+      <b style="color:var(--text);">2. Conéctalos</b><br>Activa el botón «Cable UTP» o «WiFi» según el tipo de enlace que quieras hacer: aparece una barra de pasos arriba del lienzo, y los dispositivos con puertos de ese tipo disponibles se resaltan (cobre para cable, turquesa para WiFi); los que no aplican se ven apagados. Haz clic en el primer dispositivo (elige el puerto si te lo pide) y luego en el segundo para completar el enlace. Pulsa Esc o el botón «Cancelar» de la barra si te equivocas. Cada PC/laptop/celular admite una sola conexión activa a la vez.<br><br>
+      <b style="color:var(--text);">3. Elimina un enlace</b><br>Con «Cable UTP» y «WiFi» desactivados, haz clic sobre la línea del cable o WiFi para seleccionarla; aparece un botón «✕» en el centro del enlace — haz clic ahí para borrarlo y liberar el puerto.<br><br>
+      <b style="color:var(--text);">4. Configura IP</b><br>Doble clic sobre un dispositivo para asignar IP, máscara, puerta de enlace y DNS. En el router configuras cada interfaz por separado (LAN0, LAN1, WiFi, WAN0) y opcionalmente una «ruta predeterminada» para unirlo a otra red mediante otro router.<br><br>
+      <b style="color:var(--text);">5. Agrega Internet</b><br>Coloca el ícono de nube y enlázalo (por cable) a cualquier puerto libre de uno o varios routers. No necesita IP propia de red: representa "cualquier host externo". Cualquier dispositivo con una ruta hacia ella (gateway configurado, o el router con su ruta predeterminada apuntando a otro router conectado a la nube) podrá seleccionar "Internet" como destino en el probador.<br><br>
+      <b style="color:var(--text);">6. Prueba la red</b><br>En el panel derecho elige origen y destino y pulsa «Enviar paquete». Verás el paquete viajar por la topología; si algo falla, se detiene en el punto exacto y la consola explica por qué.<br><br>
+      <b style="color:var(--text);">7. Guardado automático</b><br>Tu topología se guarda sola en este navegador (no en la nube) cada vez que haces un cambio. Si cierras la pestaña sin exportar, al volver a abrir este archivo la encontrarás tal como la dejaste. Aun así, usa «Guardar…» si quieres un archivo <code>.json</code> para compartir o respaldar aparte.<br><br>
+      <b style="color:var(--text);">8. Exportar como imagen</b><br>«Exportar PNG» genera una imagen con fondo blanco (pensada para imprimir sin gastar tinta) con el logo, los equipos, sus IP y las conexiones tal como están en el lienzo.
+    </div>
+    <div class="modal-foot"><button class="btn-secondary" id="m-cancel">Entendido</button></div>
+  `;
+  bindModalClose();
+  overlay.style.display='flex';
+});
+
+$('#btn-about').addEventListener('click', ()=>{
+  const overlay = $('#modal-overlay'), modal = $('#modal');
+  modal.innerHTML = `
+    <div class="modal-head"><div class="mh-title">Acerca de</div><button class="btn-close-x" id="m-close">✕</button></div>
+    <div class="modal-body" style="font-size:12.5px;line-height:1.9;color:var(--text-dim);text-align:center;padding-top:6px;">
+      <img class="brand-logo" src="${document.querySelector('.brand-logo') ? document.querySelector('.brand-logo').getAttribute('src') : ''}" alt="Logo" style="height:56px;width:56px;margin-bottom:10px;">
+      <div style="font-weight:700;color:var(--text);font-size:13.5px;">Unidad Educativa Ati II Pillahuaso</div>
+      <div style="margin-top:6px;font-weight:600;color:var(--text);">atiRedLab - Simulador Básico de Redes</div>
+      <div style="font-size:11px;color:var(--text-faint);">Versión: 1.0</div>
+      <div style="margin-top:10px;">Simulación asistida por IA (Claude)</div>
+      <div>Autor y desarrollador: José Cruz Abril (Joseca)</div>
+      <div><a href="https://josecaeduca.blogspot.com" target="_blank" rel="noopener" style="color:var(--accent);">josecaeduca.blogspot.com</a></div>
+      <div>2026</div>
+    </div>
+    <div class="modal-foot" style="justify-content:center;"><button class="btn-secondary" id="m-cancel">Cerrar</button></div>
+  `;
+  bindModalClose();
+  overlay.style.display='flex';
+});
+
+/* =========================================================================
+   INICIO
+   ========================================================================= */
+const restoredFromAutosave = loadAutosave();
+render();
+if (restoredFromAutosave){
+  logConsole('Se restauró automáticamente la topología guardada en este navegador.', 'dim');
+}
+
+})();
+</script>
+</body>
+</html>
